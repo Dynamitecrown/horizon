@@ -77,7 +77,8 @@ implementations is outside the initial spike; evaluate their documented interfac
 
 ## Next action
 
-M1: the stand-in game classes the fixture needs, backed by Horizon's server world
-([m0-spike.md](m0-spike.md#what-m1-needs-next)), and a second fixture. Update [the evidence table](compatibility.md).
+M1: the stand-in game classes both fixtures need, backed by Horizon's server world
+([m1-design.md](m1-design.md)). The second fixture exists (`mods/horizon/src/neoforge-fixture-pulse/`);
+its in-game NeoForge reference run is still to do. Update [the evidence table](compatibility.md).
 Report failures and unsupported APIs explicitly. A successful load or a rendered block alone
 does not establish gameplay compatibility.
