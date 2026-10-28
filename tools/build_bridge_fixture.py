@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build/test the original NeoForge 26.3 fixture using the player's installed Prism libraries; no downloads."""
+"""Build/test an original NeoForge 26.3 bridge fixture using the player's installed Prism libraries; no downloads."""
 import argparse
 import hashlib
 import json
@@ -10,7 +10,13 @@ import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'mods/horizon/src/neoforge-fixture'
+# name: (source folder, jar, logic test main class, class the jar must hold)
+FIXTURES = {
+    'counter': ('neoforge-fixture', 'horizon-bridge-fixture-0.1.0.jar', 'dev.horizonlab.bridge.CounterStateTest',
+                'dev/horizonlab/bridge/CounterState.class'),
+    'pulse': ('neoforge-fixture-pulse', 'horizon-bridge-pulse-0.1.0.jar', 'dev.horizonlab.bridge.pulse.PulseStateTest',
+              'dev/horizonlab/bridge/pulse/PulseState.class'),
+}
 MINECRAFT, NEOFORGE = '26.3', '26.3.0.99'
 
 
@@ -27,8 +33,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prism-root', type=Path, required=True)
     parser.add_argument('--jdk', type=Path, required=True)
-    parser.add_argument('--out', type=Path, default=ROOT / '.local/bridge-fixture/horizon-bridge-fixture-0.1.0.jar')
+    parser.add_argument('--fixture', choices=FIXTURES, default='counter')
+    parser.add_argument('--out', type=Path, help='default: .local/bridge-fixture/<jar name of the fixture>')
     args = parser.parse_args()
+    folder, jar_name, test_main, required = FIXTURES[args.fixture]
+    source = ROOT / 'mods/horizon/src' / folder
+    args.out = args.out or ROOT / '.local/bridge-fixture' / jar_name
     exe = '.exe' if os.name == 'nt' else ''
     javac, java = (args.jdk / 'bin' / (name + exe) for name in ('javac', 'java'))
     version = subprocess.check_output([str(javac), '-version'], text=True).strip()
@@ -61,20 +71,20 @@ def main():
             argfile.write_text('\n'.join('"' + str(arg).replace('\\', '/').replace('"', '\\"') + '"'
                                          for arg in arguments), encoding='utf-8')
             subprocess.run([str(javac), '@' + str(argfile)], check=True)
-        compile_to(classes, sorted((SOURCE / 'java').rglob('*.java')), cp)
-        compile_to(tests, sorted((SOURCE / 'test/java').rglob('*.java')), str(classes))
+        compile_to(classes, sorted((source / 'java').rglob('*.java')), cp)
+        compile_to(tests, sorted((source / 'test/java').rglob('*.java')), str(classes))
         subprocess.run([str(java), '-ea', '-cp', os.pathsep.join(map(str, [classes, tests])),
-                        'dev.horizonlab.bridge.CounterStateTest'], check=True)
+                        test_main], check=True)
         candidate = work / 'fixture.jar'
         with zipfile.ZipFile(candidate, 'w', zipfile.ZIP_DEFLATED) as jar:
-            for base in [classes, SOURCE / 'resources']:
+            for base in [classes, source / 'resources']:
                 for file in sorted(path for path in base.rglob('*') if path.is_file()):
                     info = zipfile.ZipInfo(file.relative_to(base).as_posix(), (2026, 1, 1, 0, 0, 0))
                     info.compress_type = zipfile.ZIP_DEFLATED
                     jar.writestr(info, file.read_bytes())
         with zipfile.ZipFile(candidate) as jar:
-            assert 'dev/horizonlab/bridge/CounterState.class' in jar.namelist()
-            assert not any(name.startswith(('net/', 'com/', 'org/')) or 'CounterStateTest' in name
+            assert required in jar.namelist()
+            assert not any(name.startswith(('net/', 'com/', 'org/')) or test_main.rsplit('.', 1)[1] in name
                            for name in jar.namelist()), 'Only original fixture code/resources may be packaged'
         candidate.replace(args.out)
     print(f'{args.out}\nSHA-256: {hashlib.sha256(args.out.read_bytes()).hexdigest()}')
