@@ -64,6 +64,7 @@ impl Game<'_> {
                 Some(BlockEntity::Brewing(_)) => self.tick_brewing_stand(pos)?,
                 Some(BlockEntity::DaylightDetector) => self.tick_daylight_detector(pos),
                 Some(BlockEntity::Campfire(_)) => self.tick_campfire(pos)?,
+                Some(BlockEntity::Bridged(_)) => self.tick_bridged(pos),
                 _ => {}
             }
         }
@@ -113,6 +114,9 @@ impl Game<'_> {
                         if record { Ticking::Yes } else { Ticking::Idle }
                     }
                     n if FurnaceKind::from_block(n).is_some() => Ticking::Yes,
+                    // shortcut: every bridged block counts as ticking (`tick_bridged` does nothing
+                    // without a ticker); upgrade by asking `getTicker` per state.
+                    n if horizon_client::bridge::for_block(n).is_some() => Ticking::Yes,
                     _ => Ticking::No,
                 }
             })

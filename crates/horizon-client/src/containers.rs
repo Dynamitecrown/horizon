@@ -173,6 +173,9 @@ impl Crafter {
 }
 impl BlockEntity {
     pub fn for_block(name: &str) -> Option<Self> {
+        if let Some(bridged) = crate::bridge::for_block(name) {
+            return Some(Self::Bridged(Box::new(bridged)));
+        }
         if let Some(hanging) = crate::signs::sign_kind(name) {
             return Some(Self::Sign(crate::signs::SignData {
                 hanging,
@@ -295,6 +298,7 @@ impl BlockEntity {
             Self::Skull(_) => "minecraft:skull",
             Self::EndGateway(_) => "minecraft:end_gateway",
             Self::DaylightDetector => "minecraft:daylight_detector",
+            Self::Bridged(b) => b.kind,
             Self::Campfire(_) => "minecraft:campfire",
             Self::ChiseledBookshelf(_) => "minecraft:chiseled_bookshelf",
         }
@@ -315,7 +319,8 @@ impl BlockEntity {
             | Self::CommandBlock(_)
             | Self::EndGateway(_)
             | Self::Skull(_)
-            | Self::DaylightDetector => Vec::new(),
+            | Self::DaylightDetector
+            | Self::Bridged(_) => Vec::new(),
             Self::Lectern(l) => l.book.iter().cloned().collect(),
             Self::Sculk(_) => Vec::new(),
             Self::Banner(_) => Vec::new(),
@@ -337,7 +342,8 @@ impl BlockEntity {
             | Self::Banner(_)
             | Self::EndGateway(_)
             | Self::Skull(_)
-            | Self::DaylightDetector => &[],
+            | Self::DaylightDetector
+            | Self::Bridged(_) => &[],
             Self::Crafter(c) => &c.items,
             Self::ChiseledBookshelf(b) => &b.items,
             Self::CreakingHeart(_)
@@ -363,7 +369,8 @@ impl BlockEntity {
             | Self::Banner(_)
             | Self::EndGateway(_)
             | Self::Skull(_)
-            | Self::DaylightDetector => &mut [],
+            | Self::DaylightDetector
+            | Self::Bridged(_) => &mut [],
             Self::Crafter(c) => &mut c.items,
             Self::ChiseledBookshelf(b) => &mut b.items,
             Self::CreakingHeart(_)
