@@ -41,5 +41,16 @@ State is one JSON object: `schema`, `level`, `ticks`, `interactions`, `charged`,
 | pause, 20 ticks, save/quit/reopen | 210 | 100 | 3 | true |
 | resume, 20 ticks | 255 | 120 | 3 | true |
 
-The standalone logic test checks these numbers. **The in-game NeoForge reference run has not been
-done yet**: it needs a person running the scenario in the Prism instance.
+The standalone logic test checks these numbers.
+
+## Reference evidence (2026-10-28)
+
+Tested on Windows x64, Adoptium JDK 25.0.5+8, Minecraft 26.3, NeoForge 26.3.0.99, Prism, in the
+QA instance's disposable creative world (only the two fixtures installed). JAR SHA-256:
+`1708431c1afd23d74b78c446338e8152df34e058e36aac667cd294181903f879`. No Horizon runtime was used.
+The scenario was driven through chat commands (`interact`, not real right-clicks).
+
+- Every row of the table above matches, including the save/quit/reopen.
+- 100 `BRIDGE_PULSE` trace samples; the mod's own `verify` passes before and after the reopen.
+- The bridge host world ([M1 results](../../../../docs/bridge/m1-design.md#results-of-steps-1-and-2-2026-10-28))
+  reproduces the trace: 100 of 100 samples identical.

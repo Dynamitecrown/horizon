@@ -102,7 +102,7 @@ fixture logic: each fixture's expected values come in as arguments.
 | Renamed jar SHA-256 (input jar unchanged) | `f9a90d8c…7926` (from `106bd413…`) | `c4451ea6…d5b0` (from `1708431c…`) |
 | Gameplay class unchanged by the rename | `CounterState.class` byte-identical | (same rule) |
 | Registrations | block, item, block entity type `horizon_bridge_fixture:counter` | same for `horizon_bridge_pulse:pulse` |
-| 3 interactions by command, then 100 ticks | 100 trace lines, **identical to the NeoForge reference** | 100 lines; level 210 as expected (no NeoForge trace yet) |
+| 3 interactions by command, then 100 ticks | 100 trace lines, **identical to the NeoForge reference** | 100 trace lines, **identical to the NeoForge reference** |
 | Pause, 20 ticks | 19 / 100, paused | 210 / 100, paused |
 | Save to Horizon's form, restore | `{"id":"horizon_bridge_fixture:counter","fixture_schema":1,"value":19,"ticks":100L,...}` restored equal | equal |
 | The mod's own `verify` (its save/load codecs) | passes | passes |
@@ -129,6 +129,5 @@ For the pulse fixture use `pulse.jar`, `horizon_bridge_pulse`, `horizon_bridge_p
 **Shortcuts** (each marked `shortcut:` in the code): every command source is an operator, every
 position counts as loaded, and every game-bus listener gets every event. Relative coordinates are not parsed.
 
-**Not yet:** the block is not in Horizon's world, chunks, saves or renderer (step 3). The pulse
-fixture has no NeoForge trace to compare with. Save and restore happen within one process, not
+**Not yet:** the block is not in Horizon's world, chunks, saves or renderer (step 3). Save and restore happen within one process, not
 across a real quit and reopen.
