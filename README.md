@@ -1,3 +1,8 @@
+> **Forge/NeoForge bridge research fork:** the work on `codex/neoforge-bridge` investigates
+> running unchanged supported Java mod JARs against Horizon. No gameplay bridge is implemented yet.
+> Start with the [project brief](docs/bridge/README.md), [first experiment](docs/bridge/feasibility.md),
+> and [compatibility evidence](docs/bridge/compatibility.md). The Horizon README follows below.
+
 <p align="center">
   <img src="docs/media/banner.webp" alt="Horizon: Minecraft: Java Edition 26.3, rewritten in Rust and checked against vanilla by 281 differential harnesses" width="100%">
 </p>
