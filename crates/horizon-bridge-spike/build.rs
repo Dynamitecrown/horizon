@@ -35,4 +35,30 @@ fn main() {
         });
     assert!(status.success(), "javac failed on {}", spike.display());
     println!("cargo:rustc-env=SPIKE_CLASSES={}", out.display());
+
+    // The bridge host (M1): our own stand-ins and HostWorld, which need nothing but the JDK.
+    let host = root.join("mods/horizon/src/bridge-host/java");
+    let host_out = PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("host-classes");
+    println!("cargo:rerun-if-changed={}", host.display());
+    let mut sources = Vec::new();
+    let mut folders = vec![host.clone()];
+    while let Some(folder) = folders.pop() {
+        for entry in std::fs::read_dir(&folder).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                println!("cargo:rerun-if-changed={}", path.display());
+                folders.push(path);
+            } else if path.extension().is_some_and(|e| e == "java") {
+                sources.push(path);
+            }
+        }
+    }
+    let status = Command::new(&javac)
+        .args(["--release", "25", "-Xlint:all", "-Werror", "-d"])
+        .arg(&host_out)
+        .args(&sources)
+        .status()
+        .unwrap();
+    assert!(status.success(), "javac failed on {}", host.display());
+    println!("cargo:rustc-env=SPIKE_HOST_CLASSES={}", host_out.display());
 }

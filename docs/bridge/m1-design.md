@@ -1,7 +1,8 @@
 # M1 design: the two fixtures inside Horizon
 
 Plan for [issue #2](https://github.com/Dynamitecrown/horizon/issues/2), built on the
-[M0 spike](m0-spike.md). Nothing here is implemented yet.
+[M0 spike](m0-spike.md). **Steps 1 and 2 are done** ([results](#results-of-steps-1-and-2-2026-10-28)),
+in a host world of the bridge's own. Step 3, Horizon's own `Game`, is not started.
 
 ## What the fixtures need from the game
 
@@ -80,3 +81,54 @@ Each step has its check:
   (`docs/mods.md` mentions "in-frame" single player)? The spike showed a second thread works.
 - Pinning: does the JVM need to be bundled, or is the JDK 25 that `horizon-prepare` already
   requires enough for players?
+
+## Results of steps 1 and 2 (2026-10-28)
+
+Pieces, all ours:
+
+| Piece | Where |
+| --- | --- |
+| Stand-ins for the 55 names the fixtures use (the 38 classes of the surface, plus types that only appear in descriptors) | `mods/horizon/src/bridge-host/java/dev/horizonlab/bridge/host/{mc,neo,brig,mojang,slf4j}/` |
+| Loader: finds the `@Mod` class, constructs it with a mod bus, runs deferred registrations in registry order | `.../host/BridgeLoader.java` |
+| Host world for Rust: place, command, tick, right-click, save, restore, log | `.../host/HostWorld.java` |
+| Reference rename (constant pool only) | `tools/bridge_remap.py`, tested by `tests/test_bridge_remap.py` |
+| Rust driver | `crates/horizon-bridge-spike/src/bin/world.rs` (`horizon-bridge-world`) |
+
+Every tick is driven from Rust. The JVM runs with `-Xverify:all`. The Rust driver holds no
+fixture logic: each fixture's expected values come in as arguments.
+
+| Check | Counter | Pulse |
+| --- | --- | --- |
+| Renamed jar SHA-256 (input jar unchanged) | `f9a90d8c…7926` (from `106bd413…`) | `c4451ea6…d5b0` (from `1708431c…`) |
+| Gameplay class unchanged by the rename | `CounterState.class` byte-identical | (same rule) |
+| Registrations | block, item, block entity type `horizon_bridge_fixture:counter` | same for `horizon_bridge_pulse:pulse` |
+| 3 interactions by command, then 100 ticks | 100 trace lines, **identical to the NeoForge reference** | 100 lines; level 210 as expected (no NeoForge trace yet) |
+| Pause, 20 ticks | 19 / 100, paused | 210 / 100, paused |
+| Save to Horizon's form, restore | `{"id":"horizon_bridge_fixture:counter","fixture_schema":1,"value":19,"ticks":100L,...}` restored equal | equal |
+| The mod's own `verify` (its save/load codecs) | passes | passes |
+| Resume, 20 ticks | 21 / 120 | 255 / 120 |
+| Right-click (`useWithoutItem`) | reply shows 1 interaction | same |
+| Bad command | `CommandSyntaxException: Unknown or incomplete command` | same |
+| Cost | load + start 118–530 ms (first run after a build is slowest); 74–88 µs per tick (100 interpreted ticks, `-Xverify:all`) | |
+
+Run it:
+
+```powershell
+python tools/bridge_remap.py --jar .local/bridge-fixture/horizon-bridge-fixture-0.1.0.jar --out .local/bridge-remap/counter.jar
+cargo run --release --manifest-path crates/horizon-bridge-spike/Cargo.toml --bin horizon-bridge-world -- `
+  --jar .local/bridge-remap/counter.jar --mod horizon_bridge_fixture --block horizon_bridge_fixture:counter `
+  --command bridgefixture --reference <fixture-reference-trace.jsonl> `
+  --expect-100 '{"schema":1,"value":19,"ticks":100,"interactions":3,"paused":false}' `
+  --expect-paused '{"schema":1,"value":19,"ticks":100,"interactions":3,"paused":true}' `
+  --expect-resumed '{"schema":1,"value":21,"ticks":120,"interactions":3,"paused":false}'
+```
+
+For the pulse fixture use `pulse.jar`, `horizon_bridge_pulse`, `horizon_bridge_pulse:pulse`,
+`bridgepulse` and the values in its README. Set `JAVA_HOME`.
+
+**Shortcuts** (each marked `shortcut:` in the code): every command source is an operator, every
+position counts as loaded, and every game-bus listener gets every event. Relative coordinates are not parsed.
+
+**Not yet:** the block is not in Horizon's world, chunks, saves or renderer (step 3). The pulse
+fixture has no NeoForge trace to compare with. Save and restore happen within one process, not
+across a real quit and reopen.

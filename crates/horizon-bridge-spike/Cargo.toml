@@ -10,6 +10,10 @@ description = "M0 spike: runs the NeoForge bridge fixture's original Java logic 
 # Its own workspace: research only, never built by the game's workspace or CI (docs/bridge/m0-spike.md).
 [workspace]
 
+[[bin]]
+name = "horizon-bridge-world"
+path = "src/bin/world.rs"
+
 [dependencies]
 jni = { version = "0.21", features = ["invocation"] }
 memory-stats = "1.2"
