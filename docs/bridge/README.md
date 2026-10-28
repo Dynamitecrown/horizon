@@ -5,8 +5,9 @@ implementation. A supported JAR may require automatic preparation or compilation
 must not be rewritten by hand for a result to count as bridged. Asset extraction and native Rust
 ports are useful, separately reported outcomes.
 
-**Status: project setup only.** No Java execution engine, loader compatibility layer or gameplay
-bridge has been implemented. No third-party mod is supported by this experiment yet.
+**Status: M0 execution spike passed.** The fixture's original Java logic runs from Rust in an
+embedded JVM and matches the NeoForge trace ([m0-spike.md](m0-spike.md)). No loader compatibility
+layer or gameplay bridge exists yet, and no third-party mod is supported.
 
 ## Baseline
 
@@ -17,8 +18,8 @@ bridge has been implemented. No third-party mod is supported by this experiment 
 | Working branch | `codex/neoforge-bridge` |
 | Initial Horizon commit | `cba52f4e5d7f99c592a26823fe8727beafe6ebff` |
 | Horizon Minecraft version | `26.3`, from `research-lock.json` at that commit |
-| First loader | NeoForge; exact loader, Minecraft and JDK versions selected in M0 |
-| Execution backend | Undecided; measured in M0 before adopting a runtime |
+| First loader | NeoForge 26.3.0.99 on Minecraft 26.3; JDK 25 (spike: Adoptium 25.0.5+8) |
+| Execution backend | Embedded HotSpot through JNI for M1, kept behind a backend-neutral adapter ([m0-spike.md](m0-spike.md#backends-compared)) |
 
 Keep `main` aligned with upstream. Changes belong on the research branch or small topic branches.
 Update the baseline deliberately and rerun the relevant comparisons. No automatic game releases,
@@ -76,6 +77,7 @@ implementations is outside the initial spike; evaluate their documented interfac
 
 ## Next action
 
-Execute [the M0 experiment](feasibility.md), then update [the evidence table](compatibility.md).
+M1: the stand-in game classes the fixture needs, backed by Horizon's server world
+([m0-spike.md](m0-spike.md#what-m1-needs-next)), and a second fixture. Update [the evidence table](compatibility.md).
 Report failures and unsupported APIs explicitly. A successful load or a rendered block alone
 does not establish gameplay compatibility.
