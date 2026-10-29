@@ -181,7 +181,8 @@ reach); `reset` and a fresh placement keep its numbers independent of that attem
 
 A third fixture, [fault](../../mods/horizon/src/neoforge-fixture-fault/README.md), built against
 NeoForge 26.3.0.99 like the others, calls `Level.getGameTime()` on its fifth tick; the stand-in `Level`
-has no such member, so the JVM throws `NoSuchMethodError` inside the mod's own ticker.
+has no such member, so the JVM throws `NoSuchMethodError` inside the mod's own ticker. On NeoForge the
+same jar runs without error (10 ticks: `ticks` 10, `game_time` set on tick 5).
 
 | What fails | What the bridge does |
 | --- | --- |

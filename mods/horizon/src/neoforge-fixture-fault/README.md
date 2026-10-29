@@ -19,7 +19,8 @@ Built on 2026-10-28 with Adoptium JDK 25.0.5+8: SHA-256
 
 ## Expected
 
-- **NeoForge:** it keeps ticking; after tick 5, `game_time` holds the level's time. **Not run in
-  NeoForge yet**: only compiled against it.
+- **NeoForge:** it keeps ticking; after tick 5, `game_time` holds the level's time. Checked
+  2026-10-29 in the QA instance (Prism, Adoptium JDK 25.0.5+8, jar `fa868eaa…a938`): `/tick freeze`,
+  `/setblock`, `/tick step 10`, then `/data get block` gave `ticks: 10L, game_time: 9258L`, with no error.
 - **Bridge:** on tick 5 it stops with one logged error naming `mc.Level.getGameTime()`; the game and
   other bridged blocks go on; its save keeps `ticks` 5 and `game_time` -1, and it ticks again after a reopen.
