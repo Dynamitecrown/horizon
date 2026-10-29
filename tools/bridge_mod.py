@@ -5,13 +5,14 @@
                   [--hardness N] --out DIR
 
 The folder is a content mod (API 0.2, `registries`) declaring each block from a vanilla template,
-plus `bridge.jar`, the renamed jar (`bridge_remap.py`) whose block entities, tickers, right-clicks
+with the jar's own `assets/<id>/` and `data/<id>/` (its models, item definitions and names), plus `bridge.jar`, the renamed jar (`bridge_remap.py`) whose block entities, tickers, right-clicks
 and commands the bridge runs. Pass it to the game with `--dev-mod DIR` or put it in `horizon-mods/`.
 """
 import argparse
 import json
 from pathlib import Path
 import shutil
+import zipfile
 
 
 def write(out, mod_id, blocks, template, hardness, jar):
@@ -28,6 +29,16 @@ def write(out, mod_id, blocks, template, hardness, jar):
         folder.mkdir(parents=True, exist_ok=True)
         declaration = {'template': template, 'properties': {'hardness': hardness}, 'item': True}
         (folder / f'{name}.json').write_text(json.dumps(declaration, indent=2) + '\n', encoding='utf-8')
+    # The jar's own look and data (blockstates, models, item definitions, names, loot tables), in the
+    # mod's namespace only: the content fence (docs/mods.md).
+    with zipfile.ZipFile(jar) as archive:
+        for entry in archive.namelist():
+            parts = entry.split('/')
+            if parts[:2] not in (['assets', mod_id], ['data', mod_id]) or entry.endswith('/') or '..' in parts:
+                continue
+            target = out.joinpath(*parts)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(archive.read(entry))
     shutil.copyfile(jar, out / 'bridge.jar')
 
 
