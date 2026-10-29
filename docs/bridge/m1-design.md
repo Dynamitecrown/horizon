@@ -2,8 +2,9 @@
 
 Plan for [issue #2](https://github.com/Dynamitecrown/horizon/issues/2), built on the
 [M0 spike](m0-spike.md). **Steps 1 and 2 are done** ([results](#results-of-steps-1-and-2-2026-10-28)),
-in a host world of the bridge's own. **Step 3 is done** too ([results](#results-of-step-3-2026-10-28)):
-both fixtures run in Horizon's own `Game`, across a real save, quit and reopen.
+in a host world of the bridge's own. **Steps 3 and 4 are done** too ([step 3](#results-of-step-3-2026-10-28),
+[step 4](#results-of-step-4-2026-10-28)): both fixtures run in Horizon's own `Game`, across a real
+save, quit and reopen, and a mod that needs a member the bridge lacks fails cleanly.
 
 ## What the fixtures need from the game
 
@@ -169,4 +170,35 @@ Scenario (issue #2), driven with `horizon-ctl` in scratch homes, two processes, 
 dimension); every bridged block counts as ticking and marks its chunk changed each tick; booleans are
 the only bytes in the saved form; a failed JVM save loses that entity's fields from the save.
 **Not yet:** a broken bridged block leaves its JVM entity until the position is reused; the in-frame mode,
-LAN and dedicated servers are not tested; step 4 (failures).
+LAN and dedicated servers are not tested.
+
+`horizon-ctl launch --game` runs the game in the current folder, so these worlds were saved under the
+checkout's `saves/` (ignored), not the scratch `HORIZON_HOME`, which only held logs and settings. The
+passing pulse run reused the world of a first attempt whose right-clicks missed (the block was out of
+reach); `reset` and a fresh placement keep its numbers independent of that attempt.
+
+## Results of step 4 (2026-10-28)
+
+A third fixture, [fault](../../mods/horizon/src/neoforge-fixture-fault/README.md), built against
+NeoForge 26.3.0.99 like the others, calls `Level.getGameTime()` on its fifth tick; the stand-in `Level`
+has no such member, so the JVM throws `NoSuchMethodError` inside the mod's own ticker.
+
+| What fails | What the bridge does |
+| --- | --- |
+| A tick, right-click or load throws (any Java error) | That entity stops (`BridgedSync::Failed`): no more JVM calls for it; one error in the log, naming the member when the bridge lacks one (`not supported by the bridge yet: ... 'long mc.Level.getGameTime()'`) |
+| Its save | Keeps the form the JVM saved right after the failure (or the form it was loaded with) |
+| Reopening the world | It loads from that form and runs again |
+| The mod's own `saveAdditional` throws | Shortcut: that entity's fields are left out of the save; the chunk and other entities are kept |
+
+In the game (horizon-ctl, fresh world `BridgeStep4b`): a pulse and a fault block side by side, 20 ticks:
+one error, logged once; the pulse block goes on (2 / 20); quit and reopen: no error, the fault block
+resumes from its saved 5 ticks (it and the pulse both gain the same 62 ticks before the freeze) with
+`game_time` -1, and its right-click reply reaches the player's chat. Unit tests: `describe`, a failed
+entity's save, the saved-form round trip.
+
+Found on the way: in single player the world runs on its server thread, so a bridged right-click's
+reply must go to the acting player as a packet (`guest_packets`), as vanilla's `sendSystemMessage`
+does; step 3 had sent it to the server's own chat, which nobody sees.
+
+Without the `bridge` feature the game is unchanged: no JVM, `bridge::for_block` and `decode` return
+None, so no `Bridged` entity exists (`pr_ready.py`, below).

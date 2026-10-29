@@ -95,6 +95,9 @@ pub enum BridgedSync {
     Saved(String),
     /// In the JVM.
     Live,
+    /// Stopped after the mod failed on it (`bridge::fail`): no more ticks or reactions; saves keep
+    /// its last form.
+    Failed(Option<String>),
 }
 /// `ChiseledBookShelfBlockEntity`: six slots and `lastInteractedSlot`.
 #[derive(Clone, Debug, PartialEq)]

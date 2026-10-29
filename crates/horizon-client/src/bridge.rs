@@ -36,16 +36,21 @@ pub fn decode(tag: &Tag) -> Option<Bridged> {
 }
 
 /// The fields `encode_block_entity` adds for a bridged entity: the JVM's own saved form while it
-/// is live there, else the form it was loaded with.
+/// is live there, else the form it was loaded with or last saved before it failed.
 pub fn save(e: &Bridged, pos: (i32, i32, i32)) -> Vec<(String, Tag)> {
     let saved = match &e.sync {
-        BridgedSync::Fresh => return Vec::new(),
-        BridgedSync::Saved(saved) => saved.clone(),
+        BridgedSync::Fresh | BridgedSync::Failed(None) => return Vec::new(),
+        BridgedSync::Saved(saved) | BridgedSync::Failed(Some(saved)) => saved.clone(),
         BridgedSync::Live => match jvm::save(pos) {
             Ok(saved) => saved,
             Err(err) => {
-                // shortcut: the fields are lost from this save, not the whole chunk; upgrade with M1 step 4.
-                log::error!("Horizon bridge: saving {} at {pos:?}: {err}", e.kind);
+                // shortcut: a mod whose own save throws loses this entity's fields from the save (the
+                // chunk and every other entity are kept); upgrade by keeping the last good form.
+                log::error!(
+                    "Horizon bridge: saving {} at {pos:?}: {}",
+                    e.kind,
+                    describe(&err)
+                );
                 return Vec::new();
             }
         },
@@ -53,36 +58,77 @@ pub fn save(e: &Bridged, pos: (i32, i32, i32)) -> Vec<(String, Tag)> {
     from_saved(&saved)
 }
 
-/// Puts the entity at `pos` into the JVM (fresh, or from its saved form) if it isn't there yet.
-/// Only the world that simulates calls this: a client's copy stays as decoded.
-pub fn sync(e: &mut Bridged, pos: (i32, i32, i32)) {
+/// Puts the entity at `pos` into the JVM (fresh, or from its saved form) if it isn't there yet:
+/// true when it is live there. Only the world that simulates calls this; a client's copy stays as
+/// decoded.
+pub fn sync(e: &mut Bridged, pos: (i32, i32, i32)) -> bool {
     let done = match &e.sync {
-        BridgedSync::Live => return,
+        BridgedSync::Live => return true,
+        BridgedSync::Failed(_) => return false,
         BridgedSync::Fresh => jvm::place(e.block, pos),
         BridgedSync::Saved(saved) => jvm::load(pos, saved),
     };
     match done {
         Ok(()) => e.sync = BridgedSync::Live,
-        Err(err) => log::error!("Horizon bridge: placing {} at {pos:?}: {err}", e.kind),
+        Err(err) => {
+            let saved = match std::mem::replace(&mut e.sync, BridgedSync::Fresh) {
+                BridgedSync::Saved(saved) => Some(saved),
+                _ => None,
+            };
+            fail(e, pos, "placing", &err, saved);
+        }
     }
+    matches!(e.sync, BridgedSync::Live)
 }
 
 /// One server tick of the live entity at `pos`.
-pub fn tick(pos: (i32, i32, i32)) {
+pub fn tick(e: &mut Bridged, pos: (i32, i32, i32)) {
     if let Err(err) = jvm::tick(pos) {
-        log::error!("Horizon bridge: ticking {pos:?}: {err}");
+        let saved = jvm::save(pos).ok();
+        fail(e, pos, "ticking", &err, saved);
     }
     jvm::forward_log();
 }
 
 /// An empty-hand right-click on the live entity at `pos`: the messages the player gets.
-pub fn use_block(pos: (i32, i32, i32)) -> Vec<String> {
+pub fn use_block(e: &mut Bridged, pos: (i32, i32, i32)) -> Vec<String> {
     let out = jvm::use_block(pos).unwrap_or_else(|err| {
-        log::error!("Horizon bridge: using {pos:?}: {err}");
+        let saved = jvm::save(pos).ok();
+        fail(e, pos, "using", &err, saved);
         String::new()
     });
     jvm::forward_log();
     out.lines().map(str::to_owned).collect()
+}
+
+/// Stops the entity after the mod failed on it: it no longer ticks or reacts, and saves keep
+/// `saved`, its last form. The error is logged once, naming what the bridge lacks.
+fn fail(e: &mut Bridged, pos: (i32, i32, i32), doing: &str, err: &str, saved: Option<String>) {
+    log::error!(
+        "Horizon bridge: {} at {pos:?} stopped while {doing}: {}",
+        e.kind,
+        describe(err)
+    );
+    e.sync = BridgedSync::Failed(saved);
+}
+
+/// A Java error as players and mod authors should read it: a member the mod needs but the bridge
+/// does not supply is named with the game's name for its class (`mc/Level.getGameTime()`).
+fn describe(err: &str) -> String {
+    const MISSING: [&str; 4] = [
+        "NoSuchMethodError",
+        "NoSuchFieldError",
+        "NoClassDefFoundError",
+        "AbstractMethodError",
+    ];
+    let named = err
+        .replace("dev/horizonlab/bridge/host/", "")
+        .replace("dev.horizonlab.bridge.host.", "");
+    if MISSING.iter().any(|m| err.contains(m)) {
+        format!("not supported by the bridge yet: {named}")
+    } else {
+        named
+    }
 }
 
 /// Runs `command` (no slash) if a bridged mod registered its root: Ok with the feedback lines,
@@ -418,5 +464,38 @@ mod tests {
         again.sort_by(|a, b| a.0.cmp(&b.0));
         expected.sort_by(|a, b| a.0.cmp(&b.0));
         assert_eq!(again, expected);
+    }
+
+    /// A member the bridge lacks is named as such; other errors pass through.
+    #[test]
+    fn describes_missing_members() {
+        assert_eq!(
+            describe(
+                "java.lang.NoSuchMethodError: 'long dev.horizonlab.bridge.host.mc.Level.getGameTime()'"
+            ),
+            "not supported by the bridge yet: java.lang.NoSuchMethodError: 'long mc.Level.getGameTime()'"
+        );
+        assert_eq!(
+            describe("java.lang.IllegalStateException: x"),
+            "java.lang.IllegalStateException: x"
+        );
+    }
+
+    /// A failed entity no longer reaches the JVM, and saves keep the form it had.
+    #[test]
+    fn failed_entity_keeps_its_saved_form() {
+        let saved = r#"{"id":"m:b","ticks":5L}"#.to_owned();
+        let mut e = Bridged {
+            block: "m:b",
+            kind: "m:b",
+            sync: BridgedSync::Failed(Some(saved)),
+        };
+        assert!(!sync(&mut e, (0, 0, 0)));
+        assert_eq!(
+            save(&e, (0, 0, 0)),
+            vec![("ticks".to_owned(), Tag::Long(5))]
+        );
+        e.sync = BridgedSync::Failed(None);
+        assert!(save(&e, (0, 0, 0)).is_empty());
     }
 }

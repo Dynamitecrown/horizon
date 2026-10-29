@@ -16,6 +16,8 @@ FIXTURES = {
                 'dev/horizonlab/bridge/CounterState.class'),
     'pulse': ('neoforge-fixture-pulse', 'horizon-bridge-pulse-0.1.0.jar', 'dev.horizonlab.bridge.pulse.PulseStateTest',
               'dev/horizonlab/bridge/pulse/PulseState.class'),
+    'fault': ('neoforge-fixture-fault', 'horizon-bridge-fault-0.1.0.jar', 'dev.horizonlab.bridge.fault.FaultStateTest',
+              'dev/horizonlab/bridge/fault/FaultState.class'),
 }
 MINECRAFT, NEOFORGE = '26.3', '26.3.0.99'
 

@@ -16,9 +16,10 @@ impl Game<'_> {
     }
     /// `BlockEntityTicker.tick` of the bridged entity at `pos`.
     pub(super) fn tick_bridged(&mut self, pos: Pos) {
-        if let Some(BlockEntity::Bridged(b)) = self.world.block_entities.get_mut(&pos) {
-            horizon_client::bridge::sync(b, pos);
-            horizon_client::bridge::tick(pos);
+        if let Some(BlockEntity::Bridged(b)) = self.world.block_entities.get_mut(&pos)
+            && horizon_client::bridge::sync(b, pos)
+        {
+            horizon_client::bridge::tick(b, pos);
             // shortcut: the chunk is saved as changed after every tick, not only when the mod's
             // `setChanged` says so; upgrade when the stand-in reports it.
             self.world.modified.insert((pos.0 >> 4, pos.2 >> 4));
@@ -30,12 +31,29 @@ impl Game<'_> {
         let Some(BlockEntity::Bridged(b)) = self.world.block_entities.get_mut(&pos) else {
             return false;
         };
-        horizon_client::bridge::sync(b, pos);
+        if !horizon_client::bridge::sync(b, pos) {
+            // A stopped bridged block still takes the click, as vanilla's block would.
+            return true;
+        }
+        let lines = horizon_client::bridge::use_block(b, pos);
         self.world.modified.insert((pos.0 >> 4, pos.2 >> 4));
-        for line in horizon_client::bridge::use_block(pos) {
-            self.system_message(Text::literal(&line));
+        for line in lines {
+            self.tell_player(&line);
         }
         true
+    }
+    /// `Player.sendSystemMessage` to the player the game acts for: a guest (the window's own
+    /// player on the server thread included) gets a packet once its action returns.
+    fn tell_player(&mut self, line: &str) {
+        use horizon_protocol::packets::play::{Clientbound, SystemChat};
+        if self.lan_acting.is_some() {
+            self.guest_packets.push(Clientbound::SystemChat(SystemChat {
+                content: horizon_protocol::text::literal(line),
+                overlay: false,
+            }));
+        } else {
+            self.system_message(Text::literal(line));
+        }
     }
     /// A bridged mod's command (`RegisterCommandsEvent`): true when one handled it.
     pub(super) fn bridged_command(&mut self, command: &str) -> bool {
