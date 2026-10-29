@@ -5,16 +5,19 @@ only *add* to Minecraft, they *change* it, with Mixins (and access transformers 
 render through Flywheel, Create's rendering engine. What would it take for the bridge, or Horizon itself,
 to take those changes on?
 
-Facts about Mixin and Flywheel below come from their public documentation and general knowledge, not
-from reading any mod's code (D5). Before acting on them, check them against the libraries' docs.
+Facts about Mixin, MixinExtras, Flywheel and Create were checked on 2026-10-29 against their public
+repositories, licences, build properties and API package names ([sources](#sources)), never against any
+mod's own code (D5). Where a point is still my reading rather than a source, it says so.
 
 ## Why they can't simply run
 
 A Mixin is a class in the mod's jar whose annotations say "patch this vanilla method": run my code at
 its start (`@Inject` at `HEAD`), before it returns (`RETURN`), around a call inside it (`INVOKE`,
-`@Redirect`, `@WrapOperation`), change an argument or constant (`@ModifyArg`, `@ModifyConstant`), replace
-it (`@Overwrite`), or add fields and accessors (`@Shadow`, `@Accessor`, `@Unique`). At load time the
-Mixin library rewrites the vanilla class's bytecode.
+`@Redirect`), change an argument or constant (`@ModifyArg`, `@ModifyConstant`), replace it
+(`@Overwrite`), or add fields and accessors (`@Shadow`, `@Accessor`, `@Unique`). At load time the Mixin
+library (SpongePowered Mixin, MIT) rewrites the vanilla class's bytecode. Many mods also use
+**MixinExtras** (MIT, bundled with NeoForge since 20.2.84), which adds injectors such as
+`@WrapOperation` and `@ModifyReturnValue`; the bridge would need both.
 
 Horizon has no vanilla Java classes to rewrite: the game is Rust. In the bridge, the vanilla names a
 mod uses point at our stand-ins, which are thin and forward to Rust. So:
@@ -41,7 +44,7 @@ So Mixins can't be "run"; their intent has to be translated, one target at a tim
 ## Four ways to take Mixins on
 
 **1. Real Mixin inside the bridge's JVM** (small to medium). Load the Mixin library into the bridge
-(SpongePowered Mixin is MIT; check before adding) and apply mods' Mixins to Java that exists there:
+(SpongePowered Mixin and MixinExtras are both MIT) and apply mods' Mixins to Java that exists there:
 other mods' classes, and the stand-ins for accessors and `@Shadow` fields. This alone makes mod-to-mod
 compatibility Mixins and many accessor Mixins work. It changes nothing in Horizon.
 
@@ -68,20 +71,26 @@ porting policy says. Over time this shrinks 2 and 3.
 
 ## Flywheel and custom rendering
 
-Flywheel is a library mod: an instanced renderer for Minecraft's Java renderer (OpenGL). As I understand
-its 1.x API, a mod describes **visuals**: a model (block-model geometry or "partial models"), a
-material, and **instances** of it (transform, colour, light, and for kinetic parts a rotation axis and
-speed) that it adds, updates and removes as its block entity changes. Flywheel draws them in batches,
-animating some parts on the GPU.
+Flywheel (MIT, NeoForge and Fabric) is "a modern engine for modded Minecraft": an alternate path for
+entity and block entity rendering that uses GPU instancing. Its 1.x API (package
+`dev.engine_room.flywheel.api`) has **visuals** per thing drawn (`BlockEntityVisual`, `EntityVisual`,
+`EffectVisual`), updated per frame (`DynamicVisual`), per tick (`TickableVisual`) or on light changes
+(`LightUpdatedVisual`); each holds **instances** of a model with a material, of a type from its library
+(`TransformedInstance`, `OrientedInstance`, `PosedInstance`, `ShadowInstance`, coloured and lit variants).
+Mods may also define **their own instance layouts with their own shaders**. Its companion **Vanillin**
+draws vanilla's block entities and entities through Flywheel. (The project wiki still shows the 0.x API,
+from 2022; the package names above are 1.x.)
 
-Flywheel's backend hooks Minecraft's renderer and calls OpenGL, so it can't run. Its **API** is close to
-data, though, which makes it the most promising rendering target:
+Flywheel's backend runs inside Minecraft's Java renderer, so it can't run in Horizon. Its **API** is
+close to data, though, which makes it the most promising rendering target:
 
 - **Flywheel API stand-ins backed by Horizon's renderer** (medium to large). The bridge supplies
   Flywheel's API classes; behind them, Horizon keeps the instances in GPU buffers and draws them with
-  wgpu instancing next to its own block entities. Mods' visual code runs unchanged. Most calls happen
-  when a block entity changes, not every frame; parts that spin at a fixed speed could turn in the
-  shader. Models come from the mod's own assets, as bridged blocks' models do already.
+  wgpu instancing next to its own block entities. Mods' visual code runs unchanged. Tick- and light-updated visuals call in rarely;
+  `DynamicVisual`s call every frame, which is the cost to measure. A mod's own instance types come with
+  GLSL shaders: Horizon already turns shader packs' GLSL into naga modules, so those could go the same
+  way (to check: how close Flywheel's shader conventions are to what that path expects). Models come
+  from the mod's own assets, as bridged blocks' models do already.
 - **Plain `BlockEntityRenderer` / `EntityRenderer`** (immediate mode through `PoseStack` and
   `VertexConsumer`, every frame): stand-ins could record the vertices each frame through JNI into a
   draw list. That works but costs per frame per renderer: API 0.5's budgeted draw list is where this belongs.
@@ -98,15 +107,23 @@ client too, plus a way for a mod's two halves to talk (its packets over Horizon'
 | --- | --- | --- |
 | Registration (Registrate), blocks, items, recipes | Stand-in surface, recipe types | Bridge, as M1 |
 | Kinetic network (rotation, stress) | Block entities, neighbour updates, ticking | Bridge (Java logic runs as is) |
-| Kinetic visuals | Flywheel | Flywheel API stand-ins |
+| Kinetic visuals | Flywheel 1.x (and Vanillin) | Flywheel API stand-ins, plus its own instance shaders (my reading: rotating parts are a custom instance type) |
 | Contraptions (moving structures as entities, collision with players) | Entities, movement and collision Mixins | Hooks for some; most likely native work in Horizon |
 | Trains (track graph, signals, track rendering) | All of the above plus entities over long distances | Last |
 | Ponder (in-game tutorial scenes) | Client GUI and scene rendering | Client JVM plus rendering |
 | Its Mixins (counted, not read) | Census first | 1-4 above |
 
-Create also has to exist for Minecraft 26.3 (D1), which I haven't checked; its licence (code and art
-may differ) decides whether it can be a test target at all. Realistically it is a goal for after M2 and
-M3, once one simpler real mod runs.
+What its sources say (2026-10-29):
+
+- **Licence:** code MIT; everything under `src/main/resources/assets/` (textures, models, sounds, ...)
+  **All Rights Reserved**. The bridge could run its code, but `tools/bridge_mod.py` copies a jar's
+  assets into the mod folder: fine on a player's own machine, never in anything published or shipped.
+- **Version:** its development branch is Minecraft **1.21.1**, NeoForge 21.1.219, with Flywheel 1.0.6,
+  Ponder 1.0.85, Registrate and Vanillin, plus optional integrations (JEI, Curios, Sodium, CC: Tweaked,
+  Farmer's Delight). No 26.x build was found; Flywheel has a `26.1.2/dev` branch. D1 targets 26.3 only,
+  so Create needs a 26.x release first, or D1 revisited.
+
+Realistically it is a goal for after M2 and M3, once one simpler real mod runs.
 
 ## Suggested order
 
@@ -122,3 +139,17 @@ M3, once one simpler real mod runs.
 
 What stays out of reach on this road: render-engine and shader mods, and mods that are mostly
 `@Overwrite`s of the game's internals. Those would be native ports or Horizon features of their own.
+
+## Sources
+
+Checked 2026-10-29:
+[SpongePowered Mixin](https://github.com/SpongePowered/Mixin) (MIT),
+[MixinExtras](https://github.com/LlamaLad7/MixinExtras) (MIT; bundled with NeoForge 20.2.84+),
+[Flywheel](https://github.com/Engine-Room/Flywheel) (MIT; API packages
+[visual](https://github.com/Engine-Room/Flywheel/tree/1.21.1/dev/common/src/api/java/dev/engine_room/flywheel/api/visual),
+[instance types](https://github.com/Engine-Room/Flywheel/tree/1.21.1/dev/common/src/lib/java/dev/engine_room/flywheel/lib/instance)),
+[Create](https://github.com/Creators-of-Create/Create) (its
+[LICENSE.md](https://github.com/Creators-of-Create/Create/blob/mc1.21.1/dev/LICENSE.md) and
+[gradle.properties](https://github.com/Creators-of-Create/Create/blob/mc1.21.1/dev/gradle.properties)),
+[NeoForge for 26.1](https://neoforged.net/news/26.1release/). NeoForge's own Mixin documentation page
+was not found (404), so how NeoForge loads Mixins is not checked here.
