@@ -4,6 +4,7 @@ To play, use [the launcher](../launcher/README.md); the project site is [playhor
 
 ## Build and run
 
+- [Forge/NeoForge bridge research](bridge/README.md): this fork's scope, milestones, first experiment and evidence requirements. No gameplay compatibility is claimed yet.
 - [AGENTS.md](../AGENTS.md) and [Architecture](architecture.md): where each part of the code lives, how `Game` is organised, which harness checks which area.
 - [Build from source](../README.md#build-from-source): your own copy of the game, resource preparation, `cargo run`.
 - [Native client](native-client.md): options, controls, the dedicated server, `horizon-ctl` scripting, packaging, architecture.

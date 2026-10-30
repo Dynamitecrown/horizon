@@ -26,6 +26,7 @@ pub mod border_render;
 pub mod boss_overlay;
 pub mod breaking;
 pub mod brewing;
+pub mod bridge;
 pub mod camera;
 pub mod cauldron;
 pub mod chat;

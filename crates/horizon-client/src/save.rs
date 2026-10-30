@@ -533,6 +533,11 @@ pub fn encode_block_entity(
         BlockEntity::Beehive(h) => entries.extend(h.to_nbt()),
         BlockEntity::CommandBlock(c) => entries.extend(c.save()),
         BlockEntity::DaylightDetector => {}
+        BlockEntity::Bridged(b) => {
+            let fields = crate::bridge::save(b, p);
+            entries.extend(fields.iter().map(|(k, v)| (k.as_str(), v.clone())));
+            return Tag::compound(entries);
+        }
     }
     Tag::compound(entries)
 }
@@ -601,6 +606,9 @@ pub fn decode_block_entity(tag: &Tag) -> Option<((i32, i32, i32), crate::contain
     let int = |k: &str| number(tag.get(k)).map(|v| v as i32);
     let id = text(tag.get("id"))?;
     let pos = (int("x")?, int("y")?, int("z")?);
+    if let Some(bridged) = crate::bridge::decode(tag) {
+        return Some((pos, BlockEntity::Bridged(Box::new(bridged))));
+    }
     if id == "minecraft:end_gateway" {
         return Some((pos, BlockEntity::EndGateway(decode_end_gateway(tag))));
     }
@@ -752,7 +760,8 @@ pub fn decode_block_entity(tag: &Tag) -> Option<((i32, i32, i32), crate::contain
         | BlockEntity::CreakingHeart(_)
         | BlockEntity::EndGateway(_)
         | BlockEntity::Skull(_)
-        | BlockEntity::DaylightDetector => {}
+        | BlockEntity::DaylightDetector
+        | BlockEntity::Bridged(_) => {}
         BlockEntity::Spawner(s) => **s = crate::mobs::spawner::Spawner::load(tag),
         BlockEntity::TrialSpawner(s) => **s = crate::mobs::trial_spawner::TrialSpawner::load(tag),
         BlockEntity::Vault(v) => **v = crate::vault::Vault::load(tag),

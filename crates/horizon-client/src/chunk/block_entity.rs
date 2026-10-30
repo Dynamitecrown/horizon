@@ -76,6 +76,28 @@ pub enum BlockEntity {
     DaylightDetector,
     /// `ChiseledBookShelfBlockEntity`: a `Container` of six one-book slots.
     ChiseledBookshelf(Box<ChiseledBookshelf>),
+    /// A NeoForge mod's block entity, run by the bridge (`crate::bridge`).
+    Bridged(Box<Bridged>),
+}
+/// A bridged block entity: its state lives in the JVM once `sync` put it there.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Bridged {
+    pub block: &'static str,
+    /// Its block entity type id.
+    pub kind: &'static str,
+    pub sync: BridgedSync,
+}
+#[derive(Clone, Debug, PartialEq)]
+pub enum BridgedSync {
+    /// Just placed: the JVM gets a new block entity.
+    Fresh,
+    /// Loaded from a save (the JVM side's form): the JVM loads it.
+    Saved(String),
+    /// In the JVM.
+    Live,
+    /// Stopped after the mod failed on it (`bridge::fail`): no more ticks or reactions; saves keep
+    /// its last form.
+    Failed(Option<String>),
 }
 /// `ChiseledBookShelfBlockEntity`: six slots and `lastInteractedSlot`.
 #[derive(Clone, Debug, PartialEq)]

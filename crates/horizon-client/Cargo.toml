@@ -49,6 +49,7 @@ symphonia = { version = "0.5", default-features = false, features = ["ogg", "vor
 miniz_oxide = "0.8"
 ab_glyph = "0.2.32"
 log = "0.4"
+jni = { version = "0.21", features = ["invocation"], optional = true }
 chrono = { version = "0.4.42", default-features = false, features = ["clock", "std"] }
 flate2 = { version = "1.1.10", default-features = false, features = ["zlib-rs", "runtime_detection"] }
 horizon-theme = { path = "../horizon-theme" }
@@ -94,6 +95,9 @@ controllers = ["dep:gilrs", "dep:horizon-dualsense", "horizon-client-input/contr
 # Runs code mods (wasmtime and cranelift: a quarter of a clean build). On in every release build
 # (release.yml); the tests and probes don't need it. Content mods load without it.
 mods = ["horizon-mods/runtime"]
+# NeoForge mods through the bridge (docs/bridge/m1-design.md): an embedded JVM, which needs a
+# JDK 25 (JAVA_HOME) to build and its jvm library on the PATH to run. Off by default.
+bridge = ["dep:jni"]
 # Records the call sites of mob random draws (`mob_ai_probe` traces).
 rng-trace = ["horizon-core/rng-trace"]
 

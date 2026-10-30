@@ -1,0 +1,23 @@
+modLoader = "javafml"
+loaderVersion = "[12,)"
+license = "MIT"
+
+[[mods]]
+modId = "horizon_bridge_pulse"
+version = "0.1.0"
+displayName = "Horizon Bridge Pulse (dev fixture 2)"
+description = "Second original Java fixture: toggled charge, 7-tick pulses, persistence. Not a Java-to-Horizon bridge."
+
+[[dependencies.horizon_bridge_pulse]]
+modId = "neoforge"
+type = "required"
+versionRange = "[26.3.0.99]"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.horizon_bridge_pulse]]
+modId = "minecraft"
+type = "required"
+versionRange = "[26.3]"
+ordering = "NONE"
+side = "BOTH"

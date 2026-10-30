@@ -193,7 +193,8 @@ fn vanilla_command(name: &str) -> bool {
 /// `root` with the content mods that are on layered over it
 /// (docs/modpacks.md): their blocks, items, data and assets. Read once at
 /// start, before the resources load; a mod whose content is refused is left
-/// out here and its row on the Mods page says why.
+/// out here and its row on the Mods page says why. A content mod folder that also holds
+/// `bridge.jar` is a bridged NeoForge mod: the bridge starts with its jar (`horizon_client::bridge`).
 pub(super) fn content_root(
     root: &std::path::Path,
     enabled: &std::collections::BTreeSet<String>,
@@ -206,6 +207,7 @@ pub(super) fn content_root(
     paths.retain(|p| !dev.contains(p));
     paths.extend(dev.iter().cloned());
     let mut mods: Vec<ContentMod> = Vec::new();
+    let mut bridged = Vec::new();
     for path in &paths {
         let Ok(package) = Package::read(path) else {
             continue;
@@ -230,13 +232,20 @@ pub(super) fn content_root(
             }
         });
         match content {
-            Ok(content) => mods.push(ContentMod {
-                id: m.id.clone(),
-                content,
-            }),
+            Ok(content) => {
+                let jar = path.join("bridge.jar");
+                if jar.is_file() {
+                    bridged.push((jar, m.id.clone()));
+                }
+                mods.push(ContentMod {
+                    id: m.id.clone(),
+                    content,
+                });
+            }
             Err(e) => log::warn!("Horizon: mod {} content not loaded: {e}", m.id),
         }
     }
+    horizon_client::bridge::start(&bridged);
     match mod_content::resource_root(root, &mods, &here.join(".horizon-cache")) {
         Ok(out) => {
             if out != root {
